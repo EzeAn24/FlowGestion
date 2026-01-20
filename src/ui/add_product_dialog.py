@@ -1,6 +1,7 @@
 # src/ui/add_product_dialog.py
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QLineEdit, 
                              QPushButton, QLabel, QMessageBox)
+# Ajustamos la ruta: si database está dentro de src, usamos src.database
 from src.database.controller import registrar_producto
 
 class AddProductDialog(QDialog):
@@ -11,19 +12,16 @@ class AddProductDialog(QDialog):
         
         layout = QVBoxLayout(self)
 
-        # Campos de texto con estilo
         self.txt_codigo = QLineEdit(placeholderText="Código de Barras")
         self.txt_nombre = QLineEdit(placeholderText="Nombre del Producto")
         self.txt_precio = QLineEdit(placeholderText="Precio de Venta")
         self.txt_stock = QLineEdit(placeholderText="Stock Inicial")
-        self.txt_categoria = QLineEdit(placeholderText="Categoría (Ej: Almacén)")
+        self.txt_categoria = QLineEdit(placeholderText="Categoría")
 
-        # Botón para guardar
         btn_guardar = QPushButton("💾 Guardar Producto")
-        btn_guardar.setObjectName("btnVenta") # Reutilizamos el estilo verde alegre
+        btn_guardar.setObjectName("btnVenta")
         btn_guardar.clicked.connect(self.guardar)
 
-        # Agregar al diseño
         layout.addWidget(QLabel("<h3>Registrar Producto</h3>"))
         layout.addWidget(self.txt_codigo)
         layout.addWidget(self.txt_nombre)
@@ -33,6 +31,11 @@ class AddProductDialog(QDialog):
         layout.addWidget(btn_guardar)
 
     def guardar(self):
+        # Validación básica para evitar errores de conversión
+        if not self.txt_precio.text() or not self.txt_stock.text():
+            QMessageBox.warning(self, "Error", "Precio y Stock son obligatorios")
+            return
+
         exito, msj = registrar_producto(
             self.txt_codigo.text(),
             self.txt_nombre.text(),
@@ -43,6 +46,6 @@ class AddProductDialog(QDialog):
         
         if exito:
             QMessageBox.information(self, "Éxito", msj)
-            self.accept() # Cierra la ventana
+            self.accept()
         else:
             QMessageBox.critical(self, "Error", msj)
