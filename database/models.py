@@ -1,6 +1,5 @@
-from sqlalchemy import create_all, Column, Integer, String, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine
+from sqlalchemy import Column, Integer, String, Float, create_engine
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
@@ -14,9 +13,10 @@ class Producto(Base):
     stock_actual = Column(Integer, default=0)
     categoria = Column(String(50))
 
-# Esto crea el archivo de base de datos local (SQLite)
+# Configuración del motor de la base de datos
 engine = create_engine('sqlite:///flowgestion.db')
 
 def inicializar_db():
+    # Aquí es donde se usa el metadata para crear las tablas
     Base.metadata.create_all(engine)
     print("Base de datos de FlowGestion inicializada con éxito.")

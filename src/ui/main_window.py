@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QPushButton, QLabel, QFrame)
+                             QHBoxLayout, QPushButton, QLabel, QFrame, QStackedWidget)
 from PyQt6.QtCore import Qt
 
 class MainWindow(QMainWindow):
@@ -8,46 +8,52 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("FlowGestion - Sistema de Ventas")
         self.resize(1100, 700)
 
-        # Contenedor principal
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         layout = QHBoxLayout(main_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # --- SIDEBAR (Menú Lateral) ---
+        # --- SIDEBAR ---
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # Logo o Nombre
         title = QLabel("FlowGestion")
         title.setStyleSheet("color: white; font-size: 20px; font-weight: bold; margin: 20px;")
         sidebar_layout.addWidget(title)
 
-        # Botones de navegación
         self.btn_venta = QPushButton("🛒 Nueva Venta")
-        self.btn_venta.setObjectName("btnVenta")
-        
         self.btn_stock = QPushButton("📦 Inventario")
         self.btn_clientes = QPushButton("👥 Clientes")
-        self.btn_reportes = QPushButton("📊 Reportes")
+        
+        # Conectamos los botones a la lógica de cambio de pantalla
+        self.btn_venta.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        self.btn_stock.clicked.connect(lambda: self.stack.setCurrentIndex(1))
 
         sidebar_layout.addWidget(self.btn_venta)
         sidebar_layout.addWidget(self.btn_stock)
         sidebar_layout.addWidget(self.btn_clientes)
-        sidebar_layout.addWidget(self.btn_reportes)
 
-        # --- CONTENIDO PRINCIPAL ---
-        content_area = QFrame()
-        content_area.setObjectName("MainContent")
-        content_layout = QVBoxLayout(content_area)
+        # --- CONTENIDO DINÁMICO (Stacked Widget) ---
+        self.stack = QStackedWidget()
+        self.stack.setObjectName("MainContent")
+
+        # Página 1: Ventas (Placeholder por ahora)
+        self.page_ventas = QLabel("Pantalla de Ventas - Aquí irá el carrito")
+        self.page_ventas.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        welcome_label = QLabel("Bienvenido al Dashboard")
-        welcome_label.setStyleSheet("font-size: 24px; font-weight: bold;")
-        content_layout.addWidget(welcome_label, alignment=Qt.AlignmentFlag.AlignTop)
+        # Página 2: Inventario
+        self.page_inventario = QLabel("Pantalla de Inventario - Aquí irá la tabla")
+        self.page_inventario.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Agregar al layout principal
+        self.stack.addWidget(self.page_ventas) # Índice 0
+        self.stack.addWidget(self.page_inventario) # Índice 1
+
         layout.addWidget(sidebar)
-        layout.addWidget(content_area)
+        layout.addWidget(self.stack)
+        
+        def abrir_carga_producto(self):
+        dialogo = AddProductDialog(self)
+        dialogo.exec()
