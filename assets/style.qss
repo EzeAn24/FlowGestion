@@ -1,0 +1,44 @@
+/* assets/style.qss */
+QMainWindow {
+    background-color: #F8FAFC; /* Un blanco azulado muy limpio */
+}
+
+#Sidebar {
+    background-color: #1E293B; /* Azul oscuro elegante */
+    min-width: 200px;
+    max-width: 200px;
+}
+
+#Sidebar QPushButton {
+    color: white;
+    border: none;
+    padding: 15px;
+    text-align: left;
+    font-size: 14px;
+    border-radius: 8px;
+    margin: 5px 10px;
+}
+
+#Sidebar QPushButton:hover {
+    background-color: #334155;
+}
+
+#btnVenta {
+    background-color: #22C55E; /* Verde alegre para vender */
+    font-weight: bold;
+}
+
+#btnVenta:hover {
+    background-color: #16A34A;
+}
+
+#MainContent {
+    background-color: white;
+    border-top-left-radius: 20px;
+    margin-top: 10px;
+}
+
+QLabel {
+    color: #334155;
+    font-family: 'Segoe UI', sans-serif;
+}
