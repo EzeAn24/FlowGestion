@@ -10,7 +10,7 @@ class Producto(Base):
     id = Column(Integer, primary_key=True)
     codigo_barras = Column(String(50), unique=True, nullable=False)
     nombre = Column(String(100), nullable=False)
-    precio_costo = Column(Float, default=0.0) # NUEVO: Para calcular ganancias
+    precio_costo = Column(Float, default=0.0)
     precio_venta = Column(Float, default=0.0)
     stock_actual = Column(Integer, default=0)
     categoria = Column(String(50))
@@ -29,15 +29,15 @@ class DetalleVenta(Base):
     producto_id = Column(Integer, ForeignKey('productos.id'))
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Float, nullable=False)
-    precio_costo_momento = Column(Float, default=0.0) # Para reporte histórico de ganancia
+    precio_costo_momento = Column(Float, default=0.0)
     venta = relationship("Venta", back_populates="detalles")
 
-class Perdida(Base): # NUEVO: Registro de pérdidas
+class Perdida(Base):
     __tablename__ = 'perdidas'
     id = Column(Integer, primary_key=True)
     producto_id = Column(Integer, ForeignKey('productos.id'))
     cantidad = Column(Integer, nullable=False)
-    motivo = Column(String(200)) # Ej: Vencimiento, Rotura
+    motivo = Column(String(200))
     fecha = Column(DateTime, default=datetime.datetime.now)
 
 engine = create_engine('sqlite:///flowgestion.db')

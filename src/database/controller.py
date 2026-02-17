@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import or_, func
 from .models import engine, Producto, Venta, DetalleVenta, Perdida
 import datetime
+import pandas as pd
 
 Session = sessionmaker(bind=engine)
 
@@ -12,7 +13,7 @@ def registrar_producto(codigo, nombre, costo, venta, stock, cat):
         nuevo = Producto(codigo_barras=codigo, nombre=nombre, precio_costo=float(costo), 
                          precio_venta=float(venta), stock_actual=int(stock), categoria=cat)
         session.add(nuevo); session.commit(); return True, "Producto guardado"
-    except: session.rollback(); return False, "Código ya existe"
+    except: session.rollback(); return False, "El código de barras ya existe."
     finally: session.close()
 
 def editar_producto(p_id, codigo, nombre, costo, venta, stock, cat):
@@ -22,7 +23,7 @@ def editar_producto(p_id, codigo, nombre, costo, venta, stock, cat):
         if p:
             p.codigo_barras, p.nombre, p.precio_costo = codigo, nombre, float(costo)
             p.precio_venta, p.stock_actual, p.categoria = float(venta), int(stock), cat
-            session.commit(); return True, "Actualizado"
+            session.commit(); return True, "Actualizado correctamente"
         return False, "No encontrado"
     except Exception as e: session.rollback(); return False, str(e)
     finally: session.close()
@@ -51,30 +52,90 @@ def registrar_perdida(p_id, cant, motivo):
             nueva_p = Perdida(producto_id=p_id, cantidad=int(cant), motivo=motivo)
             p.stock_actual -= int(cant)
             session.add(nueva_p); session.commit(); return True, "Pérdida registrada"
-        return False, "Stock insuficiente para registrar pérdida"
-    except Exception as e: session.rollback(); return False, str(e)
+        return False, "Stock insuficiente"
+    except: session.rollback(); return False, "Error"
     finally: session.close()
 
 def obtener_reporte_periodo(dias=1):
     session = Session()
-    fecha_limite = datetime.datetime.now() - datetime.timedelta(days=dias)
+    limite = datetime.datetime.now() - datetime.timedelta(days=dias)
     try:
-        ventas = session.query(Venta).filter(Venta.fecha >= fecha_limite).all()
-        total_recaudado = sum(v.total for v in ventas)
-        # Ganancia estimada (Venta - Costo en el momento)
-        detalles = session.query(DetalleVenta).join(Venta).filter(Venta.fecha >= fecha_limite).all()
-        costo_total = sum(d.cantidad * d.precio_costo_momento for d in detalles)
+        # Ventas e Ingresos
+        ventas = session.query(Venta).filter(Venta.fecha >= limite).all()
+        ingresos = sum(v.total for v in ventas)
         
-        perdidas = session.query(Perdida).filter(Perdida.fecha >= fecha_limite).all()
-        valor_perdida = sum(per.cantidad * 0 # Aquí podrías multiplicar por precio_costo si te interesa
-                            for per in perdidas) 
+        # Ganancia Neta (Venta - Costo)
+        detalles = session.query(DetalleVenta).join(Venta).filter(Venta.fecha >= limite).all()
+        costos_ventas = sum(d.cantidad * d.precio_costo_momento for d in detalles)
+        
+        # Análisis de Pérdidas (en $ y lista de motivos)
+        perdidas_db = session.query(Perdida, Producto).join(Producto).filter(Perdida.fecha >= limite).all()
+        valor_perdidas = sum(per.cantidad * p.precio_costo for per, p in perdidas_db)
+        lista_perdidas = [{'prod': p.nombre, 'cant': per.cantidad, 'motivo': per.motivo} for per, p in perdidas_db]
         
         return {
-            'ingresos': total_recaudado,
-            'ganancia': total_recaudado - costo_total,
+            'ingresos': ingresos,
+            'ganancia': ingresos - costos_ventas,
             'operaciones': len(ventas),
-            'perdidas_cont': len(perdidas)
+            'perdidas_total_val': valor_perdidas,
+            'lista_detallada_perdidas': lista_perdidas
         }
+    finally: session.close()
+
+def obtener_ventas_por_categoria(dias=1):
+    """Devuelve datos para el gráfico de barras."""
+    session = Session()
+    limite = datetime.datetime.now() - datetime.timedelta(days=dias)
+    try:
+        res = session.query(Producto.categoria, func.sum(DetalleVenta.cantidad * DetalleVenta.precio_unitario))\
+            .join(DetalleVenta, Producto.id == DetalleVenta.producto_id)\
+            .join(Venta, Venta.id == DetalleVenta.venta_id)\
+            .filter(Venta.fecha >= limite)\
+            .group_by(Producto.categoria).all()
+        return res
+    finally: session.close()
+    
+def obtener_datos_grafico_completo(dias=1):
+    """Obtiene ventas y pérdidas monetarias agrupadas por categoría."""
+    session = Session()
+    limite = datetime.datetime.now() - datetime.timedelta(days=dias)
+    try:
+        # 1. Ventas por categoría
+        ventas_cat = session.query(Producto.categoria, func.sum(DetalleVenta.cantidad * DetalleVenta.precio_unitario))\
+            .join(DetalleVenta, Producto.id == DetalleVenta.producto_id)\
+            .join(Venta, Venta.id == DetalleVenta.venta_id)\
+            .filter(Venta.fecha >= limite)\
+            .group_by(Producto.categoria).all()
+
+        # 2. Pérdidas por categoría (al costo)
+        perdidas_cat = session.query(Producto.categoria, func.sum(Perdida.cantidad * Producto.precio_costo))\
+            .join(Perdida, Producto.id == Perdida.producto_id)\
+            .filter(Perdida.fecha >= limite)\
+            .group_by(Producto.categoria).all()
+
+        # Unificar datos en un diccionario
+        data = {}
+        for cat, monto in ventas_cat: data[cat] = {'ventas': monto, 'perdidas': 0}
+        for cat, monto in perdidas_cat:
+            if cat in data: data[cat]['perdidas'] = monto
+            else: data[cat] = {'ventas': 0, 'perdidas': monto}
+        
+        return data
+    finally: session.close()
+
+def exportar_datos_excel(dias=1):
+    """Extrae ventas y pérdidas a un DataFrame de Pandas."""
+    session = Session()
+    limite = datetime.datetime.now() - datetime.timedelta(days=dias)
+    try:
+        # Extraer Ventas
+        query_v = session.query(Venta.fecha, Producto.nombre, DetalleVenta.cantidad, DetalleVenta.precio_unitario)\
+            .join(DetalleVenta, Venta.id == DetalleVenta.venta_id)\
+            .join(Producto, Producto.id == DetalleVenta.producto_id)\
+            .filter(Venta.fecha >= limite).all()
+        
+        df_ventas = pd.DataFrame(query_v, columns=['Fecha', 'Producto', 'Cantidad', 'Precio'])
+        return df_ventas
     finally: session.close()
 
 def obtener_todos_los_productos():

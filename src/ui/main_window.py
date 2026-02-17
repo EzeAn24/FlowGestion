@@ -4,11 +4,21 @@ from PyQt6.QtCore import Qt
 from .add_product_dialog import AddProductDialog
 from src.database.controller import *
 
+# Imports para el gráfico
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+class MplCanvas(FigureCanvas):
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111)
+        super().__init__(fig)
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FlowGestion")
-        self.resize(1200, 800)
+        self.resize(1200, 850)
         
         main_widget = QWidget(); self.setCentralWidget(main_widget)
         layout = QHBoxLayout(main_widget); layout.setContentsMargins(0,0,0,0)
@@ -27,7 +37,6 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget(); self.stack.setObjectName("MainContent")
         self.init_page_ventas(); self.init_page_inventario(); self.init_page_reportes()
-        
         layout.addWidget(sidebar); layout.addWidget(self.stack)
 
     def cambiar_pagina(self, i):
@@ -91,7 +100,7 @@ class MainWindow(QMainWindow):
     def init_page_inventario(self):
         page = QWidget(); layout = QVBoxLayout(page)
         h = QHBoxLayout()
-        btn_per = QPushButton("⚠️ Registrar Pérdida"); btn_per.clicked.connect(self.abrir_perdida)
+        btn_per = QPushButton("⚠️ Pérdida"); btn_per.clicked.connect(self.abrir_perdida)
         btn_ed = QPushButton("✏️ Editar"); btn_ed.clicked.connect(self.abrir_edit)
         btn_nv = QPushButton("+ Nuevo"); btn_nv.setObjectName("btnVenta"); btn_nv.clicked.connect(self.abrir_new)
         h.addWidget(QLabel("<h3>Stock</h3>")); h.addStretch(); h.addWidget(btn_per); h.addWidget(btn_ed); h.addWidget(btn_nv)
@@ -100,20 +109,8 @@ class MainWindow(QMainWindow):
         self.t_inv.setHorizontalHeaderLabels(["ID", "Código", "Nombre", "Costo", "Venta", "Stock", "Cat"])
         self.t_inv.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.t_inv.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        
         layout.addLayout(h); layout.addWidget(self.t_inv)
         self.stack.addWidget(page); self.actualizar_tabla()
-
-    def abrir_perdida(self):
-        row = self.t_inv.currentRow()
-        if row < 0: return
-        p_id = int(self.t_inv.item(row, 0).text())
-        cant, ok = QInputDialog.getInt(self, "Pérdida", f"Cantidad perdida de {self.t_inv.item(row, 2).text()}:")
-        if ok:
-            motivo, ok_m = QInputDialog.getText(self, "Motivo", "Razón de la pérdida:")
-            if ok_m:
-                ex, msj = registrar_perdida(p_id, cant, motivo)
-                QMessageBox.information(self, "Resultado", msj); self.actualizar_tabla()
 
     def actualizar_tabla(self):
         prods = obtener_todos_los_productos(); self.t_inv.setRowCount(0)
@@ -124,6 +121,7 @@ class MainWindow(QMainWindow):
 
     def abrir_new(self):
         if AddProductDialog(self).exec(): self.actualizar_tabla()
+
     def abrir_edit(self):
         row = self.t_inv.currentRow()
         if row >= 0:
@@ -136,23 +134,77 @@ class MainWindow(QMainWindow):
             diag.txt_cat.setText(self.t_inv.item(row,6).text())
             if diag.exec(): self.actualizar_tabla()
 
-    # --- REPORTES ---
+    def abrir_perdida(self):
+        row = self.t_inv.currentRow()
+        if row < 0: return
+        p_id = int(self.t_inv.item(row, 0).text())
+        cant, ok = QInputDialog.getInt(self, "Pérdida", f"Cantidad de {self.t_inv.item(row, 2).text()}:")
+        if ok:
+            mot, ok_m = QInputDialog.getText(self, "Motivo", "Razón:")
+            if ok_m: registrar_perdida(p_id, cant, mot); self.actualizar_tabla()
+
+    # --- REPORTES AVANZADOS ---
     def init_page_reportes(self):
         page = QWidget(); layout = QVBoxLayout(page)
-        self.combo_per = QComboBox(); self.combo_per.addItems(["Hoy", "Últimos 30 días", "Este Año"])
+        
+        # Filtro de tiempo
+        self.combo_per = QComboBox(); self.combo_per.addItems(["Hoy", "30 días", "Año"])
         self.combo_per.currentIndexChanged.connect(self.cargar_reportes)
         
-        self.rep_data = QLabel("Cargando estadísticas..."); self.rep_data.setStyleSheet("font-size: 20px; line-height: 40px;")
-        layout.addWidget(QLabel("<h1>Análisis de Negocio</h1>"))
-        layout.addWidget(self.combo_per); layout.addWidget(self.rep_data); layout.addStretch()
+        # Resumen de Etiquetas
+        self.rep_data = QLabel("Cargando..."); self.rep_data.setStyleSheet("font-size: 18px; font-weight: bold; color: #1E293B;")
+        
+        # Área del Gráfico
+        self.canvas = MplCanvas(self, width=5, height=3, dpi=100)
+        
+        # Tabla de Detalles de Pérdidas
+        self.tabla_perdidas = QTableWidget(); self.tabla_perdidas.setColumnCount(3)
+        self.tabla_perdidas.setHorizontalHeaderLabels(["Producto", "Cantidad", "Motivo"])
+        self.tabla_perdidas.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tabla_perdidas.setFixedHeight(150)
+
+        layout.addWidget(QLabel("<h1>📊 Análisis de Negocio</h1>"))
+        layout.addWidget(self.combo_per)
+        layout.addWidget(self.rep_data)
+        layout.addWidget(QLabel("<h3>📦 Ventas por Categoría</h3>"))
+        layout.addWidget(self.canvas)
+        layout.addWidget(QLabel("<h3>⚠️ Historial de Pérdidas</h3>"))
+        layout.addWidget(self.tabla_perdidas)
+        
         self.stack.addWidget(page)
 
     def cargar_reportes(self):
         idx = self.combo_per.currentIndex()
         dias = 1 if idx == 0 else (30 if idx == 1 else 365)
+        
+        # 1. Obtener datos del controlador
         res = obtener_reporte_periodo(dias)
-        txt = f"💰 Ingresos Totales: $ {res['ingresos']:.2f}\n"
-        txt += f"📈 Ganancia Neta Estimada: $ {res['ganancia']:.2f}\n"
-        txt += f"🛒 Operaciones Realizadas: {res['operaciones']}\n"
-        txt += f"⚠️ Ajustes por Pérdidas: {res['perdidas_cont']}"
-        self.rep_data.setText(txt)
+        grafico_data = obtener_ventas_por_categoria(dias)
+        
+        # 2. Actualizar Etiquetas
+        self.rep_data.setText(
+            f"💰 Ingresos: $ {res['ingresos']:.2f}   |   📈 Ganancia Neta: $ {res['ganancia']:.2f}\n"
+            f"🛒 Operaciones: {res['operaciones']}   |   📉 Pérdidas en $: $ {res['perdidas_total_val']:.2f}"
+        )
+        
+        # 3. Actualizar Tabla de Pérdidas
+        self.tabla_perdidas.setRowCount(0)
+        for p in res['lista_detallada_perdidas']:
+            r = self.tabla_perdidas.rowCount(); self.tabla_perdidas.insertRow(r)
+            self.tabla_perdidas.setItem(r, 0, QTableWidgetItem(p['prod']))
+            self.tabla_perdidas.setItem(r, 1, QTableWidgetItem(str(p['cant'])))
+            self.tabla_perdidas.setItem(r, 2, QTableWidgetItem(p['motivo']))
+
+        # 4. Actualizar Gráfico
+        self.canvas.axes.cla() # Limpiar gráfico anterior
+        categorias = [x[0] for x in grafico_data]
+        valores = [x[1] for x in grafico_data]
+        
+        if categorias:
+            self.canvas.axes.bar(categorias, valores, color='#22C55E')
+            self.canvas.axes.set_ylabel('Ventas ($)')
+            self.canvas.axes.set_title('Ingresos por Categoría')
+        else:
+            self.canvas.axes.text(0.5, 0.5, 'Sin datos para mostrar', ha='center', va='center')
+        
+        self.canvas.draw()

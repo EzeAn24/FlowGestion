@@ -1,3 +1,5 @@
 PyQt6
 sqlalchemy
 pandas
+matplotlib
+openpyxl
