@@ -1,10 +1,10 @@
 /* assets/style.qss */
 QMainWindow {
-    background-color: #F8FAFC; /* Un blanco azulado muy limpio */
+    background-color: #F8FAFC;
 }
 
 #Sidebar {
-    background-color: #1E293B; /* Azul oscuro elegante */
+    background-color: #1E293B;
     min-width: 200px;
     max-width: 200px;
 }
@@ -24,12 +24,24 @@ QMainWindow {
 }
 
 #btnVenta {
-    background-color: #22C55E; /* Verde alegre para vender */
+    background-color: #22C55E;
+    color: white;
     font-weight: bold;
 }
 
 #btnVenta:hover {
     background-color: #16A34A;
+}
+
+/* NUEVO: Estilo para el botón de eliminar */
+#btnEliminar {
+    background-color: #EF4444;
+    color: white;
+    font-weight: bold;
+}
+
+#btnEliminar:hover {
+    background-color: #DC2626;
 }
 
 #MainContent {
